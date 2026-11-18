@@ -1,0 +1,17 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false
+  },
+  "include": [
+    "src/services/agendaUtils.js",
+    "src/services/painelUtils.js",
+    "src/services/resumoInicio.js",
+    "src/services/lembretesUtils.js",
+    "src/services/gerenciadorLembretes.js",
+    "src/services/atualizacaoUtils.js"
+  ]
+}

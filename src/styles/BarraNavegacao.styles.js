@@ -34,12 +34,13 @@ export function criarEstilosBarra(tema, insets) {
     fundoSelecionado: { backgroundColor: tema.claro },
     texto: {
       width: '100%',
-      fontSize: 12 * escala,
-      lineHeight: 17 * escala,
+      fontSize: 18 * escala,
+      lineHeight: 25 * escala,
       textAlign: 'center',
       marginTop: 5,
     },
     textoSelecionado: { fontWeight: '700' },
+    textoIdoso: { fontSize: 18 * escala, lineHeight: 25 * escala },
     pressionado: { opacity: 0.65 },
   });
 }

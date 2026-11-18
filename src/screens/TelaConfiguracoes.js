@@ -4,6 +4,9 @@ import { Botao, Card, Estado, Opcoes, Tela, Texto, useAcao, usePreferencias } fr
 import { resultado } from '../services/api';
 import { supabase } from '../services/supabase';
 import { useDados } from '../services/useDados';
+import Detalhes from '../components/Detalhes';
+import ConfiguracaoLembretes from '../components/ConfiguracaoLembretes';
+import { definirContaDosLembretes, sincronizarLembretes } from '../services/lembretes';
 
 const FUSOS = [
   { valor: 'America/Sao_Paulo', titulo: 'Brasília / São Paulo' },
@@ -21,36 +24,51 @@ export default function TelaConfiguracoes({ usuario, navigation }) {
     Alert.alert('Alterar fuso da rotina?', 'Os horários cadastrados passarão a seguir o fuso selecionado. Confira a Agenda depois da alteração.', [
       { text: 'Voltar', style: 'cancel' }, { text: 'Alterar', onPress: () => executar(async () => {
         await resultado(supabase.from('perfis').update({ fuso_horario: fuso }).eq('id', usuario.id).select('id').single());
+        await sincronizarLembretes();
         await atualizar();
       }) },
     ]);
   }
-  return <Tela><Texto titulo>Configurações</Texto>
-    <Card><Texto titulo>{usuario?.user_metadata?.nome || 'Minha conta'}</Texto><Texto pequeno>{usuario.email}</Texto>
+  return <Tela>
+    <Texto titulo>Ajustes</Texto>
+    <Card>
+      <Texto titulo>Leitura</Texto>
+      <Texto>Letras maiores</Texto>
+      <Switch value={preferencias.textoMaior} disabled={ocupado}
+        accessibilityLabel="Usar letras maiores" hitSlop={10}
+        onValueChange={v => mudar('textoMaior', v)} />
+      <Detalhes titulo="Cor do aplicativo">
+        <Opcoes itens={[{ valor: 'azul', titulo: 'Azul' }, { valor: 'verde', titulo: 'Verde' }]}
+          selecionado={preferencias.cor} onChange={v => mudar('cor', v)} disabled={ocupado} />
+      </Detalhes>
+    </Card>
+    <Card>
+      <Texto titulo>Minha conta</Texto>
       <Botao titulo="Meu perfil" secundario onPress={() => navigation.navigate('Perfil')} />
-      <Botao titulo="Cuidador e privacidade" secundario onPress={() => navigation.navigate('Cuidador')} />
+      <Botao titulo={usuario?.user_metadata?.tipo_perfil === 'cuidador' ? 'Pessoas e permissões' : 'Meu cuidador e permissões'}
+        secundario onPress={() => navigation.navigate('Cuidador')} />
     </Card>
-    <Card><Texto titulo>Aparência</Texto><Texto>Cor de destaque</Texto>
-      <Opcoes itens={[{ valor: 'azul', titulo: 'Azul' }, { valor: 'verde', titulo: 'Verde' }]}
-        selecionado={preferencias.cor} onChange={(v) => mudar('cor', v)} disabled={ocupado} />
-      <Texto>Letras maiores</Texto><Switch value={preferencias.textoMaior} disabled={ocupado}
-        accessibilityLabel="Usar letras maiores" onValueChange={(v) => mudar('textoMaior', v)} />
-    </Card>
-    <Card><Texto titulo>Alerta de validade</Texto><Texto>Avisar na tela quando faltar até:</Texto>
-      <Opcoes itens={[7, 15, 30, 60].map((v) => ({ valor: v, titulo: `${v} dias` }))}
-        selecionado={preferencias.diasValidade} onChange={(v) => mudar('diasValidade', v)} disabled={ocupado} />
-      <Texto pequeno>As preferências de aparência e validade ficam salvas nesta conta, neste aparelho.</Texto>
-    </Card>
-    <Card><Texto titulo>Fuso da rotina</Texto>
-      <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
-      {dados && <Opcoes itens={FUSOS} selecionado={dados.fuso_horario} onChange={mudarFuso} disabled={ocupado} />}
-      <Texto pequeno>O cuidador vê a rotina no fuso da pessoa acompanhada.</Texto>
-    </Card>
-    <Card><Texto titulo>Como funciona</Texto>
-      <Texto pequeno>Cadastre o medicamento e o estoque. Na Agenda, defina quantidade, dias e horários. Em Hoje, confirme somente as tomadas realizadas. Atualize o estoque manualmente em Medicamentos e estoque.</Texto>
-      <Texto pequeno>Os dados de medicamentos e histórico precisam de conexão com a internet. Esta versão não envia notificações.</Texto>
-    </Card>
+    <Detalhes titulo="Outros ajustes">
+      <Card><Texto titulo>Aviso de validade</Texto><Texto>Mostrar alerta quando faltar até:</Texto>
+        <Opcoes itens={[7, 15, 30, 60].map(v => ({ valor: v, titulo: `${v} dias` }))}
+          selecionado={preferencias.diasValidade} onChange={v => mudar('diasValidade', v)} disabled={ocupado} />
+      </Card>
+      <Card><Texto titulo>Fuso horário</Texto>
+        <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
+        {dados && <Opcoes itens={FUSOS} selecionado={dados.fuso_horario} onChange={mudarFuso} disabled={ocupado} />}
+        <Texto>Use o fuso do local onde a pessoa toma os medicamentos.</Texto>
+      </Card>
+      <ConfiguracaoLembretes />
+    </Detalhes>
+    <Detalhes titulo="Como usar">
+      <Texto>Cadastre um remédio e defina os horários. Na Agenda, toque em Já tomei somente depois de tomar.</Texto>
+      <Texto>Os medicamentos e o histórico precisam de conexão. Os avisos no celular estão desativados nesta versão.</Texto>
+    </Detalhes>
     <Botao titulo={ocupado ? 'Aguarde...' : 'Sair da conta'} secundario perigo disabled={ocupado}
-      onPress={() => executar(() => resultado(supabase.auth.signOut({ scope: 'local' })))} />
+      onPress={() => executar(async () => {
+        await definirContaDosLembretes(null);
+        try { await resultado(supabase.auth.signOut({ scope: 'local' })); }
+        catch (erroSaida) { await definirContaDosLembretes(usuario.id); throw erroSaida; }
+      })} />
   </Tela>;
 }

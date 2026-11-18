@@ -18,15 +18,15 @@ function ConteudoAcompanhamento({ idosoId, navigation }) {
     <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
     {dados && <>
       <Card>
-        <Texto pequeno>Você está acompanhando</Texto>
         <Texto titulo>{dados.nome}</Texto>
         <Texto>{textoIdade(dados.idade)}</Texto>
-        <Texto pequeno>Os medicamentos e horários abaixo pertencem a {dados.nome}.</Texto>
+
       </Card>
-      <Texto>Consulta autorizada. As confirmações e as alterações ficam com a pessoa acompanhada.</Texto>
-      <Botao titulo="Ver histórico de tomadas" secundario onPress={() => navigation.navigate('Historico', { idosoId, nome: dados.nome })} />
+
+
       <PainelRotina key={idosoId} idosoId={idosoId} navigation={navigation} somenteLeitura exibirMedicamentos />
+      <Botao titulo="Ver histórico de tomadas" secundario onPress={() => navigation.navigate('Historico', { idosoId, nome: dados.nome })} />
     </>}
-    <Botao titulo="Voltar aos idosos acompanhados" secundario onPress={() => navigation.navigate('Cuidador')} />
+    <Botao titulo="Voltar às pessoas acompanhadas" secundario onPress={() => navigation.navigate('Cuidador')} />
   </Tela>;
 }

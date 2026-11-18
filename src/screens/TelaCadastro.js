@@ -103,7 +103,7 @@ export default function TelaCadastro() {
   }
   return <ScrollView style={styles.container} contentContainerStyle={styles.conteudo} keyboardShouldPersistTaps="handled">
       <View style={styles.formulario}>
-        <Text style={styles.titulo}>Criar conta</Text>
+        <Text accessibilityRole="header" style={styles.titulo}>Criar conta</Text>
         <Text style={styles.subtitulo}>
           {'Preencha seus dados para come\u00e7ar.'}
         </Text>

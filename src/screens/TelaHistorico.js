@@ -5,6 +5,8 @@ import { supabase } from '../services/supabase';
 import { quantidade } from '../services/painelUtils';
 import { useDados } from '../services/useDados';
 import { identificacaoAcompanhada } from '../services/acompanhamento';
+import Detalhes from '../components/Detalhes';
+import StatusAtualizacao from '../components/StatusAtualizacao';
 
 const FILTROS = [
   { valor: 'todos', titulo: 'Todas' },
@@ -37,7 +39,7 @@ function ConteudoHistorico({ idosoId, usuarioId, filtro, mudarFiltro }) {
     }));
     return { ...contexto, nome: pessoa?.nome };
   }, [idosoId, pessoal, filtro, cursor]);
-  const { dados, erro, carregando, atualizar } = useDados(buscar);
+  const { dados, erro, carregando, atualizar, atualizadoEm } = useDados(buscar);
   function maisAntigos() {
     const ultimo = dados?.itens?.at(-1);
     if (!ultimo || !dados.tem_mais) return;
@@ -50,24 +52,35 @@ function ConteudoHistorico({ idosoId, usuarioId, filtro, mudarFiltro }) {
   return <Tela atualizar={atualizar} carregando={carregando}>
     <Texto titulo>Histórico de tomadas</Texto>
     {dados && <Card><Texto titulo>{pessoal ? 'Meu histórico' : `Acompanhando: ${dados.nome}`}</Texto></Card>}
-    <Texto pequeno>Últimos 30 dias, em páginas de até 100 registros. Sem confirmação significa que não houve registro no aplicativo.</Texto>
+
     <Opcoes itens={FILTROS} selecionado={filtro} onChange={mudarFiltro} />
     <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
+
     {dados && <>
-      <Texto pequeno>O acompanhamento das doses sem confirmação começou em {formatar(dados.historico_desde)}. As confirmações anteriores continuam no histórico do período.</Texto>
+
       {!dados.itens.length && <Card><Texto>Nenhum registro neste período e filtro.</Texto></Card>}
       {dados.itens.map(item => <Card key={item.id}>
         <Texto titulo>{item.nome_medicamento}</Texto>
         <Texto>{quantidade(item.quantidade_registrada, item.unidade_registrada)}</Texto>
-        <Texto pequeno>{item.dosagem_registrada}</Texto>
-        <Texto pequeno>Previsto: {formatar(item.previsto_para, item.fuso_registrado)}</Texto>
+
+
         <Texto>{item.confirmado_em ? 'Tomada confirmada' : 'Sem confirmação registrada'}</Texto>
-        {item.confirmado_em && <Texto pequeno>Confirmado: {formatar(item.confirmado_em, item.fuso_registrado)}</Texto>}
+        <Texto>{formatar(item.confirmado_em || item.previsto_para, item.fuso_registrado)}</Texto>
+        <Detalhes titulo={`Detalhes do registro de ${item.nome_medicamento}`}>
+          <Texto>{item.dosagem_registrada}</Texto>
+          <Texto>Previsto: {formatar(item.previsto_para, item.fuso_registrado)}</Texto>
+          {item.confirmado_em && <Texto>Confirmado: {formatar(item.confirmado_em, item.fuso_registrado)}</Texto>}
+        </Detalhes>
       </Card>)}
       <Texto pequeno>Página {pagina + 1}</Texto>
       {pagina > 0 && <Botao titulo="Ver página mais recente" secundario disabled={carregando}
         onPress={() => setPagina(valor => valor - 1)} />}
       {dados.tem_mais && <Botao titulo="Ver registros mais antigos" secundario disabled={carregando} onPress={maisAntigos} />}
     </>}
+    <Detalhes titulo="Sobre o histórico">
+      <Texto>Registros dos últimos 30 dias. Sem confirmação significa que a tomada não foi registrada no aplicativo.</Texto>
+      <StatusAtualizacao atualizadoEm={atualizadoEm} carregando={carregando} erro={erro} fuso={dados?.fuso} />
+      {dados?.historico_desde && <Texto>Início do acompanhamento de doses sem confirmação: {formatar(dados.historico_desde)}.</Texto>}
+    </Detalhes>
   </Tela>;
 }

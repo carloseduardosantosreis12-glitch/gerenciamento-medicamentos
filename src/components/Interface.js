@@ -122,15 +122,19 @@ export function Botao({
   perigo,
   style,
   papel = 'button',
-  selecionado
+  selecionado,
+  expandido,
+  rotuloAcessivel
 }) {
   const {
     tema
   } = usePreferencias();
   const cor = estilos.corBotao(tema, perigo);
-  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole={papel} accessibilityState={{
+  return <Pressable onPress={onPress} disabled={disabled} accessibilityRole={papel} accessibilityLabel={rotuloAcessivel} accessibilityState={{
     disabled: !!disabled,
-    checked: papel === 'radio' ? selecionado : undefined
+    checked: papel === 'radio' ? selecionado : undefined,
+    selected: selecionado,
+    expanded: expandido
   }} style={estilos.botao(secundario, tema, cor, disabled, style)}>
     <Texto cor={estilos.corTextoBotao(secundario, cor)} style={estilos.textoBotao}>{titulo}</Texto>
   </Pressable>;

@@ -1,9 +1,9 @@
-import estilos from "../styles/TelaPerfil.styles";
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { Botao, Campo, Card, Estado, Tela, Texto, useAcao } from '../components/Interface';
 import { supabase } from '../services/supabase';
 import { resultado } from '../services/api';
+import Detalhes from '../components/Detalhes';
 import { mascararNascimento, nascimentoBR, nascimentoISO } from '../services/perfilUtils';
 export default function TelaPerfil({
   usuario,
@@ -11,7 +11,6 @@ export default function TelaPerfil({
 }) {
   const tipo = usuario?.user_metadata?.tipo_perfil === 'cuidador' ? 'cuidador' : 'idoso';
   const [nome, setNome] = useState(usuario?.user_metadata?.nome || usuario?.user_metadata?.full_name || '');
-  const [codigo, setCodigo] = useState('');
   const [nascimento, setNascimento] = useState('');
   const [carregandoNascimento, setCarregandoNascimento] = useState(true);
   const [erroNascimento, setErroNascimento] = useState('');
@@ -52,41 +51,22 @@ export default function TelaPerfil({
       navigation.goBack();
     });
   }
-  function solicitar() {
-    executar(async () => {
-      if (tipo !== 'cuidador') {
-        throw new Error('Somente contas cadastradas como Cuidador podem solicitar acompanhamento.');
-      }
-      const valor = codigo.trim().toLowerCase();
-      if (!/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/.test(valor)) {
-        throw new Error('Cole o código completo da pessoa que será acompanhada.');
-      }
-      if (valor === usuario.id.toLowerCase()) {
-        throw new Error('Use o código de outra conta.');
-      }
-      const vinculo = await resultado(supabase.rpc('solicitar_acompanhamento', {
-        p_idoso_id: valor
-      }));
-      setCodigo('');
-      Alert.alert(vinculo.status === 'autorizado' ? 'Acompanhamento já autorizado' : 'Solicitação registrada', vinculo.status === 'autorizado' ? 'Abra a aba Idosos para ver os medicamentos e a rotina.' : 'A pessoa precisa autorizar o acesso na área Cuidador da conta dela.');
-    });
-  }
   return <Tela>
       <Texto titulo>Meu perfil</Texto>
       <Card>
         <Campo rotulo="Nome completo" value={nome} onChangeText={setNome} maxLength={200} editable={!ocupado} autoCapitalize="words" />
-        <Texto pequeno>E-mail da conta</Texto>
+        <Detalhes titulo="Dados da conta"><Texto pequeno>E-mail</Texto>
         <Texto selectable>{usuario.email}</Texto>
         <Texto>Perfil de uso</Texto>
-        <Texto style={estilos.tipoPerfil}>
+        <Texto>
           {tipo === 'cuidador' ? 'Cuidador' : 'Idoso'}
         </Texto>
-        <Texto pequeno>Perfil definido no cadastro.</Texto>
+        </Detalhes>
       </Card>
       <Botao titulo={ocupado ? 'Aguarde...' : 'Salvar perfil'} onPress={salvar} disabled={ocupado} />
+      <Detalhes titulo="Data de nascimento (opcional)">
       <Card>
-        <Texto titulo>Data de nascimento</Texto>
-        <Texto pequeno>Opcional. A idade é calculada a partir desta data para aparecer no acompanhamento autorizado.</Texto>
+        <Texto>A idade será mostrada ao cuidador autorizado.</Texto>
         <Estado erro={erroNascimento} carregando={carregandoNascimento}
           atualizar={() => setTentativaNascimento(valor => valor + 1)} />
         {!erroNascimento && !carregandoNascimento && <>
@@ -97,20 +77,8 @@ export default function TelaPerfil({
             onPress={salvarNascimento} disabled={ocupado} />
         </>}
       </Card>
-      {tipo === 'idoso' ? <Card>
-          <Texto titulo>Meu código de acompanhamento</Texto>
-          <Texto>Compartilhe este código com seu cuidador.</Texto>
-          <Texto pequeno selectable accessibilityLabel="Meu código de acompanhamento">
-            {usuario.id}
-          </Texto>
-          <Texto pequeno>Você não precisa digitar um código. Depois que o cuidador solicitar acesso, autorize a solicitação na área Cuidador.</Texto>
-          <Botao titulo="Ver solicitações e permissões" secundario onPress={() => navigation.navigate('Cuidador')} disabled={ocupado} />
-        </Card> : <Card>
-          <Texto titulo>Acompanhar uma pessoa</Texto>
-          <Campo rotulo="Código da pessoa acompanhada" value={codigo} onChangeText={setCodigo} autoCapitalize="none" autoCorrect={false} placeholder="Cole o código completo" editable={!ocupado} />
-          <Botao titulo={ocupado ? 'Aguarde...' : 'Solicitar acompanhamento'} onPress={solicitar} disabled={ocupado} />
-          <Texto pequeno>O acesso à rotina, ao estoque e ao histórico depende da autorização da pessoa acompanhada.</Texto>
-          <Botao titulo="Ver acompanhamentos" secundario onPress={() => navigation.navigate('Cuidador')} disabled={ocupado} />
-        </Card>}
+      </Detalhes>
+      <Botao titulo={tipo === 'idoso' ? 'Meu cuidador e permissões' : 'Pessoas e permissões'}
+        secundario onPress={() => navigation.navigate('Cuidador')} />
     </Tela>;
 }

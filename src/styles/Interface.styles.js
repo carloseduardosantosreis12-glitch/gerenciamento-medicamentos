@@ -98,7 +98,7 @@ export default {
   },
   corErro: cores.perigo,
   tamanhoTexto(tema, titulo, pequeno) {
-    return (titulo ? 23 : pequeno ? 15 : 18) * tema.escala;
+    return (titulo ? 26 : pequeno ? 18 : 18) * tema.escala;
   },
   corBotao(tema, perigo) {
     return perigo ? tema.perigo : tema.azul;

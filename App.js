@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Text, View } from 'react-native';
 import {
   NavigationContainer,
@@ -15,6 +15,7 @@ import TelaCadastro from './src/screens/TelaCadastro';
 import TelaLogin from './src/screens/TelaLogin';
 import TelaConfirmarEmail from './src/screens/TelaConfirmarEmail';
 import TelaInicial from './src/screens/TelaInicial';
+import TelaRotina from './src/screens/TelaRotina';
 import TelaCadastrarMedicamento from './src/screens/TelaCadastrarMedicamento';
 import TelaAgendarMedicamento from './src/screens/TelaAgendarMedicamento';
 import TelaMedicamentos from './src/screens/TelaMedicamentos';
@@ -23,6 +24,9 @@ import TelaAcompanhamento from './src/screens/TelaAcompanhamento';
 import TelaHistorico from './src/screens/TelaHistorico';
 import TelaPerfil from './src/screens/TelaPerfil';
 import TelaConfiguracoes from './src/screens/TelaConfiguracoes';
+import { LembretesProvider } from './src/components/LembretesProvider';
+import { LEMBRETES_HABILITADOS, obterNotificacoes } from './src/services/lembretes';
+import { podeAbrirLembrete } from './src/services/lembretesUtils';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +34,7 @@ export function Navegacao({ sessao }) {
   const { tema } = usePreferencias();
   const navigationRef = useNavigationContainerRef();
   const [rotaAtual, setRotaAtual] = useState({ name: 'Inicio' });
+  const notificacaoPendente = useRef(false);
   const usuario = sessao?.user;
   const ehCuidador = usuario?.user_metadata?.tipo_perfil === 'cuidador';
 
@@ -38,12 +43,44 @@ export function Navegacao({ sessao }) {
     if (rota) setRotaAtual(rota);
   }
 
+  function abrirNotificacaoPendente() {
+    atualizarRotaAtual();
+    if (notificacaoPendente.current) {
+      notificacaoPendente.current = false;
+      navigationRef.navigate('Rotina');
+    }
+  }
+
+  useEffect(() => {
+    if (!LEMBRETES_HABILITADOS || !usuario?.id || Platform.OS === 'web') return;
+    let ativo = true;
+    let listener;
+    let ultimoIdentificador;
+    obterNotificacoes().then(async notificacoes => {
+      if (!ativo) return;
+      function abrir(resposta) {
+        const pedido = resposta?.notification?.request;
+        if (!ativo || !podeAbrirLembrete(resposta, usuario.id)
+            || pedido.content.data.teste || pedido.identifier === ultimoIdentificador) return;
+        ultimoIdentificador = pedido.identifier;
+        if (navigationRef.isReady()) navigationRef.navigate('Rotina');
+        else notificacaoPendente.current = true;
+        notificacoes.clearLastNotificationResponseAsync().catch(() => {});
+      }
+      listener = notificacoes.addNotificationResponseReceivedListener(abrir);
+      abrir(await notificacoes.getLastNotificationResponseAsync());
+    }).catch(() => {});
+    return () => { ativo = false; listener?.remove(); notificacaoPendente.current = false; };
+  }, [usuario?.id, navigationRef]);
+
   const telas = usuario
     ? [
         ['Inicio', TelaInicial, '', false],
+        ['Rotina', TelaRotina, 'Minha agenda'],
         ['CadastrarMedicamento', TelaCadastrarMedicamento, 'Medicamento'],
         ['Agenda', TelaAgendarMedicamento, 'Agenda'],
         ['Medicamentos', TelaMedicamentos, 'Medicamentos e estoque'],
+        ['Estoque', TelaMedicamentos, 'Estoque baixo'],
         ['Cuidador', TelaCuidador, ehCuidador ? 'Idosos acompanhados' : 'Cuidador'],
         ['Acompanhamento', TelaAcompanhamento, 'Acompanhamento'],
         ['Historico', TelaHistorico, 'Histórico'],
@@ -60,7 +97,7 @@ export function Navegacao({ sessao }) {
   return (
     <NavigationContainer
       ref={navigationRef}
-      onReady={atualizarRotaAtual}
+      onReady={abrirNotificacaoPendente}
       onStateChange={atualizarRotaAtual}
     >
       <View style={estilos.areaAplicativo}>
@@ -134,7 +171,9 @@ export default function App() {
         key={sessao?.user.id || 'acesso'}
         usuarioId={sessao?.user.id}
       >
-        <Navegacao sessao={sessao} />
+        <LembretesProvider usuarioId={sessao?.user.id}>
+          <Navegacao sessao={sessao} />
+        </LembretesProvider>
       </PreferenciasProvider>
     </SafeAreaProvider>
   );

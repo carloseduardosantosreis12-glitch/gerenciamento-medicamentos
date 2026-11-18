@@ -5,6 +5,8 @@ import { Botao, Campo, Card, Estado, Opcoes, Tela, Texto, useAcao } from '../com
 import { contaId, resultado } from '../services/api';
 import { supabase } from '../services/supabase';
 import { dataBR, numero, quantidade, validadeISO } from '../services/painelUtils';
+import Detalhes from '../components/Detalhes';
+import { sincronizarLembretes } from '../services/lembretes';
 const EMBALAGENS = [{
   valor: 'caixa',
   titulo: 'Caixa',
@@ -32,11 +34,11 @@ const CONTEUDOS = [{
   plural: 'mL'
 }];
 const FORMAS = [{
-  valor: 'embalagens',
-  titulo: 'Por embalagens'
-}, {
   valor: 'total',
   titulo: 'Total restante'
+}, {
+  valor: 'embalagens',
+  titulo: 'Por embalagens'
 }];
 const VAZIO = {
   nome: '',
@@ -70,7 +72,7 @@ export default function TelaCadastrarMedicamento({
 }) {
   const id = route?.params?.medicamentoId;
   const [dados, setDados] = useState(VAZIO);
-  const [forma, setForma] = useState('embalagens');
+  const [forma, setForma] = useState('total');
   const [embalagem, setEmbalagem] = useState('');
   const [numeroEmbalagens, setNumeroEmbalagens] = useState('');
   const [conteudoEmbalagem, setConteudoEmbalagem] = useState('');
@@ -86,7 +88,7 @@ export default function TelaCadastrarMedicamento({
     let ativo = true;
     setErro('');
     setDados(VAZIO);
-    setForma(id ? 'total' : 'embalagens');
+    setForma('total');
     setEmbalagem('');
     setNumeroEmbalagens('');
     setConteudoEmbalagem('');
@@ -181,14 +183,19 @@ export default function TelaCadastrarMedicamento({
       const uid = await contaId();
       if (id) {
         await resultado(supabase.from('medicamentos').update(item).eq('id', id).eq('idoso_id', uid).select('id').single());
+        await sincronizarLembretes();
+        Alert.alert('Medicamento salvo', `Estoque registrado: ${quantidade(total, dados.unidade_estoque)}.`);
+        navigation.goBack();
       } else {
-        await resultado(supabase.from('medicamentos').insert({
+        const salvo = await resultado(supabase.from('medicamentos').insert({
           ...item,
           idoso_id: uid
         }).select('id').single());
+        Alert.alert('Medicamento salvo', 'Agora defina a quantidade por tomada e os horários.', [
+          { text: 'Depois', onPress: () => navigation.goBack() },
+          { text: 'Agendar horários', onPress: () => navigation.replace('Agenda', { medicamentoId: salvo.id }) },
+        ]);
       }
-      Alert.alert('Medicamento salvo', `Estoque registrado: ${quantidade(total, dados.unidade_estoque)}.`);
-      navigation.goBack();
     });
   }
   return <Tela>
@@ -202,13 +209,14 @@ export default function TelaCadastrarMedicamento({
         </Card>
         <Card>
           <Texto titulo>Estoque</Texto>
-          <Texto>Como deseja informar a quantidade?</Texto>
-          <Opcoes itens={FORMAS} selecionado={forma} onChange={escolherForma} disabled={ocupado} />
+          <Detalhes titulo="Outra forma de contar">
+            <Opcoes itens={FORMAS} selecionado={forma} onChange={escolherForma} disabled={ocupado} />
+          </Detalhes>
           {forma === 'embalagens' ? <>
             <Texto pequeno>Use esta opção para embalagens completas com a mesma quantidade em cada uma.</Texto>
             <Texto style={estilos.rotuloEmbalagem}>Como ele vem embalado?</Texto>
             <Opcoes itens={EMBALAGENS} selecionado={embalagem} onChange={escolherEmbalagem} disabled={ocupado} />
-          </> : <Texto pequeno>Informe o que ainda resta. Esta opção também serve para caixas e frascos já abertos.</Texto>}
+          </> : null}
           {!!dados.unidade_estoque && !conteudoSelecionado && <Texto pequeno>
             Estoque anterior: {quantidade(dados.quantidade_estoque, dados.unidade_estoque)}. Escolha o conteúdo abaixo e informe os valores na nova medida.
           </Texto>}
@@ -226,7 +234,9 @@ export default function TelaCadastrarMedicamento({
           {conteudoSelecionado && <Campo rotulo={`Avisar quando restarem até (${conteudoSelecionado.plural})`} value={dados.limite_alerta} onChangeText={valor => alterar('limite_alerta', valor)} placeholder="Ex.: 5" keyboardType={dados.unidade_estoque === 'mL' ? 'decimal-pad' : 'number-pad'} maxLength={13} editable={!ocupado} />}
         </Card>
         <Card>
-          <Campo rotulo="Validade (opcional)" value={dados.validade} onChangeText={valor => alterar('validade', valor)} placeholder="DD/MM/AAAA" keyboardType="number-pad" maxLength={10} editable={!ocupado} />
+          <Detalhes titulo={dados.validade ? `Validade: ${dados.validade}` : 'Informar validade (opcional)'}>
+          <Campo rotulo="Validade" value={dados.validade} onChangeText={valor => alterar('validade', valor)} placeholder="DD/MM/AAAA" keyboardType="number-pad" maxLength={10} editable={!ocupado} />
+          </Detalhes>
         </Card>
         <Botao titulo={ocupado ? 'Salvando...' : 'Salvar medicamento'} onPress={salvar} disabled={ocupado} />
       </>}

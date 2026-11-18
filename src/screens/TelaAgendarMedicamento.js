@@ -6,10 +6,13 @@ import { supabase } from '../services/supabase';
 import { useDados } from '../services/useDados';
 import { DIAS_SEMANA, UNIDADES_DOSE, horarioValido, mascararHorario, resumirDias, unidadeDose } from '../services/agendaUtils';
 import { numero, quantidade } from '../services/painelUtils';
+import Detalhes from '../components/Detalhes';
+import { sincronizarLembretes } from '../services/lembretes';
 
 export default function TelaAgendarMedicamento({ navigation, route }) {
   const [selecionado, setSelecionado] = useState(route?.params?.medicamentoId || '');
   const [dias, setDias] = useState([1, 2, 3, 4, 5, 6, 7]);
+  const [mostrarDias, setMostrarDias] = useState(false);
   const [horarios, setHorarios] = useState([]);
   const [digitado, setDigitado] = useState('');
   const [dose, setDose] = useState('');
@@ -31,11 +34,13 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
   function limpar() {
     setEditando(null); setDose(''); setHorarios([]); setDigitado('');
     setDias([1, 2, 3, 4, 5, 6, 7]);
+    setMostrarDias(false);
     setUnidade(unidadeDose((dados || []).find(m => m.id === selecionado)?.unidade_estoque));
   }
   function escolher(id) {
     setSelecionado(id); setEditando(null); setDose(''); setHorarios([]); setDigitado('');
     setDias([1, 2, 3, 4, 5, 6, 7]);
+    setMostrarDias(false);
     setUnidade(unidadeDose((dados || []).find(m => m.id === id)?.unidade_estoque));
   }
   function adicionar() {
@@ -56,7 +61,7 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
       await resultado(supabase.rpc(editando ? 'editar_agendamento_com_dose' : 'salvar_agendamento_com_dose', {
         ...(editando ? { p_horario_id: editando.id } : { p_medicamento_id: selecionado }),
         p_horarios: horarios, p_dias_semana: dias, p_quantidade_dose: valor, p_unidade_dose: unidade }));
-      limpar(); await atualizar(); Alert.alert('Agendamento salvo', editando
+      limpar(); await atualizar(); await sincronizarLembretes(); Alert.alert('Agendamento salvo', editando
         ? 'O horário anterior foi substituído. Os outros horários foram mantidos.'
         : 'A rotina da tela inicial foi atualizada.');
     });
@@ -65,6 +70,7 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
     Alert.alert('Pausar horário?', `${item.nome}, ${item.horario.slice(0, 5)}.`, [
       { text: 'Voltar', style: 'cancel' }, { text: 'Pausar', onPress: () => executar(async () => {
         await resultado(supabase.from('horarios').update({ ativo: false }).eq('id', item.id).select('id').single());
+        await sincronizarLembretes();
         await atualizar();
       }) },
     ]);
@@ -82,23 +88,31 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
     {dados && <>
       <Card><Texto titulo>1. Medicamento</Texto>
         {!dados.length && <Texto>Cadastre um medicamento para agendar.</Texto>}
+        {selecionado && <Texto>{dados.find(m => m.id === selecionado)?.nome || 'Escolha um medicamento'}</Texto>}
+        <Detalhes key={selecionado || 'escolher'} titulo={selecionado ? 'Trocar medicamento' : 'Escolher medicamento'} abertoInicial={!selecionado}>
         {dados.map((m) => <Botao key={m.id} titulo={`${m.nome} · ${m.dosagem}`} secundario={selecionado !== m.id}
           disabled={ocupado} onPress={() => escolher(m.id)} />)}
         <Botao titulo="Cadastrar medicamento" secundario onPress={() => navigation.navigate('CadastrarMedicamento')} />
+        </Detalhes>
       </Card>
-      {!!dados.length && <>
+      {!!dados.length && !!selecionado && <>
         <Card><Texto titulo>2. Quantidade por tomada</Texto>
           <Opcoes itens={UNIDADES_DOSE}
             selecionado={unidade} onChange={setUnidade} disabled={ocupado} />
           <Campo rotulo="Quantidade em cada horário" value={dose} onChangeText={setDose} keyboardType="decimal-pad"
             maxLength={13} placeholder="Ex.: 1 ou 2,5" editable={!ocupado} />
-          <Texto pequeno>A quantidade vale para todos os horários desta lista. Para quantidades diferentes, salve os horários separadamente.</Texto>
+          <Detalhes titulo="Ajuda com a quantidade"><Texto>A quantidade vale para todos os horários desta lista. Para quantidades diferentes, salve os horários separadamente.</Texto></Detalhes>
         </Card>
         <Card><Texto titulo>3. Dias</Texto>
-          {DIAS_SEMANA.map((d) => <Botao key={d.valor} titulo={`${dias.includes(d.valor) ? '✓ ' : ''}${d.nome}`}
+          <Texto>{dias.length ? resumirDias(dias) : 'Escolha pelo menos um dia.'}</Texto>
+          <Botao titulo={mostrarDias ? 'Fechar escolha dos dias' : 'Escolher outros dias'} secundario
+            disabled={ocupado} onPress={() => setMostrarDias(valor => !valor)} />
+          {mostrarDias && <>{DIAS_SEMANA.map((d) => <Botao key={d.valor} titulo={`${dias.includes(d.valor) ? '✓ ' : ''}${d.nome}`}
             secundario={!dias.includes(d.valor)} disabled={ocupado} onPress={() => setDias((lista) => lista.includes(d.valor)
               ? lista.filter((dia) => dia !== d.valor) : [...lista, d.valor].sort((a, b) => a - b))} />)}
-          <Botao titulo="Todos os dias" secundario disabled={ocupado} onPress={() => setDias([1, 2, 3, 4, 5, 6, 7])} />
+          <Botao titulo="Todos os dias" secundario disabled={ocupado} onPress={() => {
+            setDias([1, 2, 3, 4, 5, 6, 7]); setMostrarDias(false);
+          }} /></>}
         </Card>
         <Card><Texto titulo>4. Horários</Texto>
           <Campo rotulo={editando ? 'Horário que substituirá o anterior' : 'Novo horário'} value={digitado} onChangeText={(v) => setDigitado(mascararHorario(v))}
@@ -110,7 +124,7 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
           <Botao titulo={ocupado ? 'Salvando...' : editando ? 'Salvar alteração' : 'Salvar agendamento'} onPress={salvar} disabled={ocupado} />
         </Card>
       </>}
-      <Texto titulo>Horários agendados</Texto>
+      <Detalhes titulo={`Horários já agendados (${agendamentos.length})`}>
       {!agendamentos.length && <Texto>Nenhum horário ativo cadastrado.</Texto>}
       {agendamentos.map((h) => <Card key={h.id}>
         <Texto titulo>{h.horario.slice(0, 5)} · {h.nome}</Texto>
@@ -118,12 +132,13 @@ export default function TelaAgendarMedicamento({ navigation, route }) {
         <Botao titulo="Editar este horário" secundario disabled={ocupado} onPress={() => {
           setEditando(h);
           setSelecionado(h.medicamentoId); setDias(h.dias); setDose(h.quantidade_dose == null ? '' : String(h.quantidade_dose));
+          setMostrarDias(h.dias.length !== 7);
           setUnidade(h.unidade_dose || ''); setHorarios([h.horario.slice(0, 5)]); setDigitado('');
           Alert.alert('Horário carregado', 'Altere os campos acima e toque em Salvar agendamento.');
         }} />
         <Botao titulo="Pausar este horário" secundario disabled={ocupado} onPress={() => pausar(h)} />
       </Card>)}
-      <Texto pequeno>Os horários seguem o fuso definido nas configurações. As notificações estão desativadas nesta versão.</Texto>
+      </Detalhes>
     </>}
   </Tela>;
 }

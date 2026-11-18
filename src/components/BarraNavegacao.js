@@ -8,7 +8,7 @@ import { criarEstilosBarra } from '../styles/BarraNavegacao.styles';
 
 export const ITENS_NAVEGACAO = [
   { tipo: 'medicamentos', titulo: 'Medicamentos', rota: 'Inicio' },
-  { tipo: 'agenda', titulo: 'Agenda', rota: 'Agenda' },
+  { tipo: 'agenda', titulo: 'Agenda', rota: 'Rotina' },
   { tipo: 'cuidador', titulo: 'Cuidador', rota: 'Cuidador' },
   { tipo: 'configuracoes', titulo: 'Configurações', rota: 'Configuracoes' },
 ];
@@ -16,9 +16,11 @@ export const ITENS_NAVEGACAO = [
 const SECOES = {
   Inicio: 'Inicio',
   Medicamentos: 'Inicio',
+  Estoque: 'Inicio',
   CadastrarMedicamento: 'Inicio',
   Historico: 'Inicio',
-  Agenda: 'Agenda',
+  Agenda: 'Rotina',
+  Rotina: 'Rotina',
   Cuidador: 'Cuidador',
   Acompanhamento: 'Cuidador',
   Configuracoes: 'Configuracoes',
@@ -26,21 +28,30 @@ const SECOES = {
 };
 
 export function itensDaNavegacao(usuario) {
-  if (usuario?.user_metadata?.tipo_perfil !== 'cuidador') return ITENS_NAVEGACAO;
+  if (usuario?.user_metadata?.tipo_perfil !== 'cuidador') return [
+    { tipo: 'medicamentos', titulo: 'Início', rota: 'Inicio' },
+    { tipo: 'agenda', titulo: 'Agenda', rota: 'Rotina' },
+    { tipo: 'lista', titulo: 'Remédios', rota: 'Medicamentos' },
+  ];
   return ITENS_NAVEGACAO.map(item => ({
     ...item,
     titulo: {
-      Inicio: 'Meus remédios',
-      Agenda: 'Minha agenda',
-      Cuidador: 'Idosos',
+      Inicio: 'Início',
+      Rotina: 'Agenda',
+      Cuidador: 'Pessoas',
+      Configuracoes: 'Ajustes',
     }[item.rota] || item.titulo,
   }));
 }
 
-export function secaoDaRota(rota, usuarioId) {
+export function secaoDaRota(rota, usuarioId, ehCuidador = true) {
   const nome = typeof rota === 'string' ? rota : rota?.name;
   if (nome === 'Historico' && rota?.params?.idosoId
       && rota.params.idosoId !== usuarioId) return 'Cuidador';
+  if (!ehCuidador) {
+    if (['Medicamentos', 'Estoque', 'CadastrarMedicamento'].includes(nome)) return 'Medicamentos';
+    if (['Rotina', 'Agenda', 'Historico'].includes(nome)) return 'Rotina';
+  }
   return SECOES[nome];
 }
 
@@ -70,7 +81,8 @@ export default function BarraNavegacao({ navigation, rotaAtual, usuario }) {
   const insets = useSafeAreaInsets();
   const [tecladoAberto, setTecladoAberto] = useState(false);
   const estilos = useMemo(() => criarEstilosBarra(tema, insets), [tema, insets]);
-  const selecionada = secaoDaRota(rotaAtual, usuario?.id);
+  const ehCuidador = usuario?.user_metadata?.tipo_perfil === 'cuidador';
+  const selecionada = secaoDaRota(rotaAtual, usuario?.id, ehCuidador);
   const itens = itensDaNavegacao(usuario);
 
   useEffect(() => {
@@ -109,7 +121,7 @@ export default function BarraNavegacao({ navigation, rotaAtual, usuario }) {
             <Texto
               pequeno
               cor={cor}
-              style={[estilos.texto, selecionado && estilos.textoSelecionado]}
+              style={[estilos.texto, !ehCuidador && estilos.textoIdoso, selecionado && estilos.textoSelecionado]}
             >
               {item.titulo}
             </Texto>

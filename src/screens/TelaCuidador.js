@@ -7,6 +7,7 @@ import { resultado } from '../services/api';
 import { supabase } from '../services/supabase';
 import { useDados } from '../services/useDados';
 import { listarIdososAcompanhados } from '../services/acompanhamento';
+import Detalhes from '../components/Detalhes';
 import { textoIdade } from '../services/perfilUtils';
 export default function TelaCuidador({
   usuario,
@@ -89,54 +90,72 @@ export default function TelaCuidador({
     .filter(v => v.cuidador_id === usuario.id)
     .sort((a, b) => Number(b.status === 'autorizado') - Number(a.status === 'autorizado'));
   const nome = id => dados?.nomes[id] || `Conta ${id.slice(0, 8)}`;
+  function cartaoPermissao(v) {
+    return <Card key={v.id}>
+      <Texto titulo>{nome(v.cuidador_id)}</Texto>
+      <Texto>{v.status === 'pendente' ? 'Quer acompanhar sua rotina' : v.status === 'autorizado' ? 'Acesso autorizado' : 'Acesso encerrado'}</Texto>
+      {v.status === 'pendente' ? <>
+        <Botao titulo="Autorizar acesso" disabled={ocupado} onPress={() => decidir(v, 'autorizado')} />
+        <Botao titulo="Recusar solicitação" secundario perigo disabled={ocupado} onPress={() => decidir(v, 'revogado')} />
+      </> : <Detalhes titulo={`Gerenciar acesso de ${nome(v.cuidador_id)}`}>
+        <Texto>Esta pessoa pode consultar medicamentos e histórico enquanto o acesso estiver autorizado.</Texto>
+        <Botao titulo={v.status === 'revogado' ? 'Reativar acesso' : 'Revogar acesso'} secundario perigo={v.status !== 'revogado'}
+          disabled={ocupado} onPress={() => decidir(v, v.status === 'revogado' ? 'autorizado' : 'revogado')} />
+      </Detalhes>}
+    </Card>;
+  }
+  function cartaoPessoa(v) {
+    const nomePessoa = dados.idosos[v.idoso_id]?.nome || (v.status === 'autorizado' ? nome(v.idoso_id) : 'Solicitação enviada');
+    return <Card key={v.id}>
+      <Texto titulo>{nomePessoa}</Texto>
+      {v.status === 'autorizado' ? <>
+        <Texto>{textoIdade(dados.idosos[v.idoso_id]?.idade)}</Texto>
+        <Botao titulo="Ver rotina" onPress={() => navigation.navigate('Acompanhamento', { idosoId: v.idoso_id, nome: nomePessoa })} />
+      </> : <Texto>{v.status === 'pendente' ? 'Aguardando autorização' : 'Acompanhamento encerrado'}</Texto>}
+      {v.status !== 'revogado' && <Detalhes titulo={`Opções de ${nomePessoa}`}>
+        <Botao titulo={v.status === 'pendente' ? 'Cancelar solicitação' : 'Encerrar acompanhamento'} secundario perigo
+          disabled={ocupado} onPress={() => decidir(v, 'revogado')} />
+      </Detalhes>}
+    </Card>;
+  }
   return <Tela atualizar={atualizar} carregando={carregando}>
-      <Texto titulo>{ehCuidador ? 'Idosos acompanhados' : 'Cuidador e acompanhamento'}</Texto>
-      {ehCuidador && <Texto>Escolha um idoso autorizado para consultar seus medicamentos e sua rotina. Seus próprios remédios ficam em Meus remédios e Minha agenda.</Texto>}
-      {ehCuidador ? <Card>
-          <Texto titulo>Quero acompanhar alguém</Texto>
-          <Campo rotulo="Código da pessoa acompanhada" value={codigo} onChangeText={setCodigo} autoCapitalize="none" autoCorrect={false} placeholder="Cole o código completo" editable={!ocupado} />
-          <Botao titulo={ocupado ? 'Aguarde...' : 'Solicitar acompanhamento'} onPress={solicitar} disabled={ocupado} />
-          <Texto pequeno>O acesso depende da autorização da pessoa acompanhada.</Texto>
-        </Card> : <Card>
-          <Texto titulo>Meu código de acompanhamento</Texto>
-          <Texto selectable accessibilityLabel={`Meu código de acompanhamento: ${usuario.id}`}>
-            {usuario.id}
-          </Texto>
-          <View style={estilos.acoesCodigo}>
-            <Botao titulo="Copiar" onPress={copiarCodigo} disabled={ocupado} style={estilos.botaoCopiar} />
-            <Botao titulo="Compartilhar" onPress={compartilharCodigo} secundario disabled={ocupado} style={estilos.botaoCompartilhar} />
-          </View>
-          <Texto pequeno>Envie este código ao cuidador. Você decide se autoriza o acompanhamento.</Texto>
-        </Card>}
-      <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
-      {dados && <>
-        {(!ehCuidador || minhas.length > 0) && <>
-          <Texto titulo>Quem acompanha minha conta</Texto>
-          {!minhas.length && <Texto>Nenhuma solicitação recebida.</Texto>}
-          {minhas.map(v => <Card key={v.id}>
-              <Texto titulo>{nome(v.cuidador_id)}</Texto>
-              <Texto pequeno>Status: {v.status}</Texto>
-              <Texto pequeno selectable>Código da conta: {v.cuidador_id}</Texto>
-              {v.status !== 'autorizado' && <Botao titulo={v.status === 'revogado' ? 'Reativar acesso' : 'Autorizar acesso'} disabled={ocupado} onPress={() => decidir(v, 'autorizado')} />}
-              {v.status !== 'revogado' && <Botao titulo={v.status === 'pendente' ? 'Recusar solicitação' : 'Revogar acesso'} secundario perigo disabled={ocupado} onPress={() => decidir(v, 'revogado')} />}
-            </Card>)}
-        </>}
-        {(ehCuidador || acompanho.length > 0) && <>
-          <Texto titulo>{ehCuidador ? 'Quem eu acompanho' : 'Pessoas que acompanho'}</Texto>
-          {!acompanho.length && <Card><Texto>Você ainda não acompanha nenhum idoso. Solicite o acompanhamento pelo código e aguarde a autorização na conta dele.</Texto></Card>}
-          {acompanho.map(v => <Card key={v.id}>
-              <Texto titulo>{dados.idosos[v.idoso_id]?.nome || (v.status === 'autorizado' ? nome(v.idoso_id) : 'Solicitação de acompanhamento')}</Texto>
-              {v.status === 'autorizado' && <Texto>{textoIdade(dados.idosos[v.idoso_id]?.idade)}</Texto>}
-              <Texto pequeno>{v.status === 'autorizado' ? 'Acompanhamento autorizado' : v.status === 'pendente' ? 'Aguardando autorização do idoso' : 'Acompanhamento encerrado'}</Texto>
-              {v.status === 'pendente' && <Texto pequeno>Os dados do idoso estarão disponíveis depois da autorização.</Texto>}
-              {v.status !== 'autorizado' && <Texto pequeno selectable>Código da conta: {v.idoso_id}</Texto>}
-              {v.status === 'autorizado' && <Botao titulo="Ver medicamentos e rotina" onPress={() => navigation.navigate('Acompanhamento', {
-            idosoId: v.idoso_id,
-            nome: dados.idosos[v.idoso_id]?.nome || nome(v.idoso_id)
-          })} />}
-              {v.status !== 'revogado' && <Botao titulo={v.status === 'pendente' ? 'Cancelar solicitação' : 'Encerrar acompanhamento'} secundario perigo disabled={ocupado} onPress={() => decidir(v, 'revogado')} />}
-            </Card>)}
-        </>}
+    <Texto titulo>{ehCuidador ? 'Pessoas acompanhadas' : 'Meu cuidador'}</Texto>
+    <Estado erro={erro} carregando={carregando && !dados} atualizar={atualizar} />
+    {dados && <>
+      {minhas.some(v => v.status === 'pendente') && <>
+        <Texto titulo>Solicitações recebidas</Texto>
+        {minhas.filter(v => v.status === 'pendente').map(cartaoPermissao)}
       </>}
-    </Tela>;
+      {(!ehCuidador || minhas.some(v => v.status === 'autorizado')) && <>
+        <Texto titulo>Quem acompanha minha conta</Texto>
+        {!minhas.some(v => v.status === 'autorizado') && <Texto>Nenhum cuidador autorizado.</Texto>}
+        {minhas.filter(v => v.status === 'autorizado').map(cartaoPermissao)}
+      </>}
+      {(ehCuidador || acompanho.some(v => v.status !== 'revogado')) && <>
+        {!acompanho.some(v => v.status !== 'revogado') && <Card><Texto>Você ainda não acompanha ninguém. Use Adicionar pessoa para começar.</Texto></Card>}
+        {acompanho.filter(v => v.status !== 'revogado').map(cartaoPessoa)}
+      </>}
+      {(minhas.some(v => v.status === 'revogado') || acompanho.some(v => v.status === 'revogado')) && <Detalhes titulo="Acessos encerrados">
+        {minhas.filter(v => v.status === 'revogado').map(cartaoPermissao)}
+        {acompanho.filter(v => v.status === 'revogado').map(cartaoPessoa)}
+      </Detalhes>}
+    </>}
+    {ehCuidador ? <Detalhes titulo="Adicionar pessoa">
+      <Card>
+        <Campo rotulo="Código da pessoa" value={codigo} onChangeText={setCodigo} autoCapitalize="none" autoCorrect={false}
+          placeholder="Cole o código completo" editable={!ocupado} />
+        <Botao titulo={ocupado ? 'Aguarde...' : 'Solicitar acompanhamento'} onPress={solicitar} disabled={ocupado} />
+        <Texto>A pessoa precisa autorizar seu acesso.</Texto>
+      </Card>
+    </Detalhes> : <Detalhes titulo="Compartilhar meu código">
+      <Card>
+        <Texto>Envie ao cuidador e aguarde a solicitação.</Texto>
+        <Texto selectable accessibilityLabel={`Meu código: ${usuario.id}`}>{usuario.id}</Texto>
+        <View style={estilos.acoesCodigo}>
+          <Botao titulo="Copiar código" onPress={copiarCodigo} disabled={ocupado} style={estilos.botaoCopiar} />
+          <Botao titulo="Compartilhar" onPress={compartilharCodigo} secundario disabled={ocupado} style={estilos.botaoCompartilhar} />
+        </View>
+      </Card>
+    </Detalhes>}
+  </Tela>;
 }

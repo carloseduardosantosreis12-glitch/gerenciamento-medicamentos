@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 export function useDados(buscar) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState('');
+  const [atualizadoEm, setAtualizadoEm] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const sequencia = useRef(0);
   const ativa = useRef(false);
@@ -14,7 +15,10 @@ export function useDados(buscar) {
     setErro('');
     try {
       const resultado = await buscar();
-      if (ativa.current && pedido === sequencia.current) setDados(resultado);
+      if (ativa.current && pedido === sequencia.current) {
+        setDados(resultado);
+        setAtualizadoEm(Date.now());
+      }
     } catch (falha) {
       if (ativa.current && pedido === sequencia.current) {
         setDados(null);
@@ -27,6 +31,7 @@ export function useDados(buscar) {
   useFocusEffect(useCallback(() => {
     ativa.current = true;
     setDados(null);
+    setAtualizadoEm(null);
     atualizar();
     const listener = AppState.addEventListener('change', (estado) => {
       if (estado === 'active') atualizar();
@@ -41,5 +46,5 @@ export function useDados(buscar) {
       clearInterval(relogio);
     };
   }, [atualizar]));
-  return { dados, erro, carregando, atualizar };
+  return { dados, erro, carregando, atualizar, atualizadoEm };
 }

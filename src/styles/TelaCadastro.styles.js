@@ -91,7 +91,7 @@ const fixos = StyleSheet.create({
     color: cores.textoCadastro
   },
   descricaoOpcao: {
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 24,
     color: cores.textoSecundarioCadastro,
     marginTop: 5
